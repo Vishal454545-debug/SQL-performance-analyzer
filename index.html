@@ -1,0 +1,877 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SQL Performance Analyzer</title>
+
+    <style>
+        :root {
+            --navy: #253858;
+            --blue: #4263eb;
+            --bg: #f4f6fb;
+            --card: #ffffff;
+            --text: #202938;
+            --muted: #687386;
+            --border: #e1e6ef;
+            --green: #13865c;
+            --red: #c0392b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        header {
+            background: var(--navy);
+            color: white;
+            padding: 25px max(20px, calc((100% - 1200px) / 2));
+        }
+
+        header h1 { margin: 0 0 8px; font-size: 27px; }
+        header p { margin: 0; color: #dbe4f5; font-size: 14px; }
+
+        main {
+            max-width: 1200px;
+            margin: 25px auto;
+            padding: 0 18px 35px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 3px 12px rgba(30, 45, 75, .035);
+            min-width: 0;
+        }
+
+        h2 { font-size: 18px; margin: 0 0 16px; }
+        h3 { font-size: 15px; margin: 0 0 12px; }
+
+        .subtext {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        textarea {
+            display: block;
+            width: 100%;
+            min-height: 155px;
+            padding: 14px;
+            resize: vertical;
+            border: 1px solid #cbd3e1;
+            border-radius: 8px;
+            font: 14px/1.7 Consolas, monospace;
+            color: #18263e;
+            background: #fbfcff;
+        }
+
+        textarea:focus {
+            outline: 2px solid #c5d2ff;
+            border-color: var(--blue);
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin-top: 13px;
+        }
+
+        button {
+            padding: 11px 17px;
+            border: 0;
+            border-radius: 7px;
+            background: var(--navy);
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        button.secondary {
+            background: #edf1f8;
+            color: var(--navy);
+        }
+
+        button:disabled { opacity: .55; cursor: wait; }
+
+        #status {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        #status.error { color: var(--red); }
+        #status.success { color: var(--green); }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .metric {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            padding: 17px;
+            min-width: 0;
+        }
+
+        .metric .label {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .metric .value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--navy);
+            overflow-wrap: anywhere;
+        }
+
+        .metric .detail {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 7px;
+        }
+
+        .section-title {
+            margin: 27px 0 14px;
+            font-size: 21px;
+        }
+
+        .two-columns {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .two-columns .card { margin-bottom: 0; }
+
+        .table-wrap { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 11px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: #f5f7fc;
+            color: var(--navy);
+            font-weight: 600;
+        }
+
+        td code {
+            font-family: Consolas, monospace;
+            overflow-wrap: anywhere;
+        }
+
+        .tag {
+            display: inline-block;
+            border-radius: 5px;
+            padding: 4px 7px;
+            background: #edf1f8;
+            color: var(--navy);
+            font-size: 11px;
+        }
+
+        .tag.KEYWORD { background: #e7edff; color: #2949b8; }
+        .tag.IDENTIFIER { background: #e4f6ed; color: #13764f; }
+        .tag.OPERATOR { background: #fff0dc; color: #955600; }
+        .tag.NUMBER, .tag.STRING { background: #f3e8ff; color: #7136a8; }
+        .tag.COMMENT { background: #edf0f3; color: #606976; }
+
+        .stat-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .stat {
+            padding: 12px;
+            background: #f6f8fc;
+            border-radius: 8px;
+            min-width: 0;
+        }
+
+        .stat .name {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 7px;
+        }
+
+        .stat .number {
+            font-size: 17px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .bar {
+            height: 7px;
+            margin-top: 9px;
+            border-radius: 8px;
+            background: #e5eaf3;
+            overflow: hidden;
+        }
+
+        .bar > div {
+            height: 100%;
+            width: 0;
+            background: var(--blue);
+            border-radius: 8px;
+            transition: width .3s ease;
+        }
+
+        .empty {
+            color: var(--muted);
+            font-size: 13px;
+            padding: 12px 0;
+        }
+
+        .footnote {
+            margin-top: 17px;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media (max-width: 760px) {
+            .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .two-columns { grid-template-columns: 1fr; }
+            header h1 { font-size: 23px; }
+        }
+
+        @media (max-width: 380px) {
+            .grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .metric { padding: 12px; }
+            .metric .value { font-size: 21px; }
+            .card { padding: 14px; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <h1>SQL Performance Analyzer</h1>
+    <p>SQL lexical analysis · PostgreSQL execution · OS and network monitoring · AI diagnosis</p>
+</header>
+
+<main>
+    <section class="card">
+        <h2>SQL Workload Input</h2>
+        <p class="subtext">
+            Enter a read-only SQL query supported by the configured PostgreSQL database.
+            Query execution is subject to backend safety checks and a statement timeout.
+        </p>
+
+        <textarea id="queries"
+            spellcheck="false"
+            placeholder="SELECT name, salary&#10;FROM employees&#10;WHERE salary > 50000;">SELECT * FROM table1;</textarea>
+
+        <div class="actions">
+            <button id="run" type="button" onclick="analyzeWorkload()">
+                Analyze Workload
+            </button>
+            <button class="secondary" type="button" onclick="clearResults()">
+                Clear
+            </button>
+            <span id="status" role="status" aria-live="polite">Ready to analyze.</span>
+        </div>
+    </section>
+
+    <h2 class="section-title">SQL Analysis Overview</h2>
+
+    <section class="grid">
+        <div class="metric">
+            <div class="label">Total Tokens</div>
+            <div class="value" id="totalTokens">—</div>
+            <div class="detail">Recognized SQL tokens</div>
+        </div>
+        <div class="metric">
+            <div class="label">Statements</div>
+            <div class="value" id="statements">—</div>
+            <div class="detail">Non-empty statements</div>
+        </div>
+        <div class="metric">
+            <div class="label">Keywords</div>
+            <div class="value" id="keywords">—</div>
+            <div class="detail">SQL keywords detected</div>
+        </div>
+        <div class="metric">
+            <div class="label">Identifiers</div>
+            <div class="value" id="identifiers">—</div>
+            <div class="detail">Names and identifiers</div>
+        </div>
+    </section>
+
+    <h2 class="section-title">Lexical Analysis</h2>
+
+    <section class="two-columns">
+        <div class="card">
+            <h3>Token Distribution</h3>
+            <div class="stat-list" id="tokenCounts">
+                <div class="empty">Run an analysis to view token counts.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Query Complexity Indicators</h3>
+            <div class="stat-list" id="complexity">
+                <div class="empty">Complexity indicators will appear here.</div>
+            </div>
+            <p class="footnote">
+                These are structural indicators, not measured execution cost.
+                Actual performance depends on the database, schema, indexes,
+                data volume and execution plan.
+            </p>
+        </div>
+    </section>
+
+    <section class="card" style="margin-top: 18px;">
+        <h2>Token Details</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Token Type</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody id="tokenRows">
+                    <tr><td colspan="3" class="empty">No tokens yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p id="tokenSummary" class="footnote"></p>
+    </section>
+
+    <h2 class="section-title">Database Performance</h2>
+    <section class="grid" id="databaseMetrics">
+        <div class="metric"><div class="label">Execution Time</div><div class="value">—</div></div>
+        <div class="metric"><div class="label">Rows Returned</div><div class="value">—</div></div>
+        <div class="metric"><div class="label">Database Status</div><div class="value">—</div></div>
+        <div class="metric"><div class="label">Plan Scan</div><div class="value">—</div></div>
+    </section>
+    <section class="two-columns" style="margin-top:18px;">
+        <div class="card"><h2>Execution Plan</h2><pre id="queryPlan" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;">Run a query to view its plan.</pre></div>
+        <div class="card"><h2>AI Performance Diagnosis</h2><div id="aiResults" class="empty">Run a query to view anomaly and bottleneck analysis.</div></div>
+    </section>
+
+    <h2 class="section-title">Operating System Monitoring</h2>
+    <section class="grid" id="osMetrics">
+        <div class="metric">
+            <div class="label">CPU Usage</div>
+            <div class="value">—</div>
+        </div>
+        <div class="metric">
+            <div class="label">Memory Usage</div>
+            <div class="value">—</div>
+        </div>
+        <div class="metric">
+            <div class="label">Disk Usage</div>
+            <div class="value">—</div>
+        </div>
+        <div class="metric">
+            <div class="label">Process Count</div>
+            <div class="value">—</div>
+        </div>
+    </section>
+
+    <h2 class="section-title">Network Monitoring</h2>
+    <section class="grid" id="networkMetrics">
+        <div class="metric">
+            <div class="label">Bytes Sent</div>
+            <div class="value">—</div>
+        </div>
+        <div class="metric">
+            <div class="label">Bytes Received</div>
+            <div class="value">—</div>
+        </div>
+        <div class="metric">
+            <div class="label">Local TCP Latency</div>
+            <div class="value">—</div>
+        </div>
+        <div class="metric">
+            <div class="label">Active Interfaces</div>
+            <div class="value">—</div>
+        </div>
+    </section>
+
+    <section class="card" style="margin-top: 18px;">
+        <h2>Network Interfaces</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Interface</th>
+                        <th>Status</th>
+                        <th>Speed</th>
+                        <th>MTU</th>
+                    </tr>
+                </thead>
+                <tbody id="interfaceRows">
+                    <tr><td colspan="4" class="empty">Network data not loaded yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <p class="footnote">
+        Note: OS and network values are current system-wide measurements.
+        They are not resource usage attributable to the submitted SQL query.
+        Local TCP latency measures connectivity to the configured local service,
+        not Internet latency.
+    </p>
+</main>
+
+<footer>SQL Performance Analyzer · Local monitoring dashboard</footer>
+
+<script>
+    const API_BASE = "http://127.0.0.1:5001";
+    const $ = id => document.getElementById(id);
+
+    function setStatus(message, type = "") {
+        $("status").textContent = message;
+        $("status").className = type;
+    }
+
+    function formatNumber(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toLocaleString() : "—";
+    }
+
+    function formatBytes(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return "—";
+        if (n < 1024) return n + " B";
+
+        const units = ["KB", "MB", "GB", "TB"];
+        let amount = n / 1024;
+        let i = 0;
+
+        while (amount >= 1024 && i < units.length - 1) {
+            amount /= 1024;
+            i++;
+        }
+
+        return amount.toFixed(1) + " " + units[i];
+    }
+
+    function metricCard(label, value, detail = "") {
+        const card = document.createElement("div");
+        card.className = "metric";
+
+        const labelEl = document.createElement("div");
+        labelEl.className = "label";
+        labelEl.textContent = label;
+
+        const valueEl = document.createElement("div");
+        valueEl.className = "value";
+        valueEl.textContent = value;
+
+        card.append(labelEl, valueEl);
+
+        if (detail) {
+            const detailEl = document.createElement("div");
+            detailEl.className = "detail";
+            detailEl.textContent = detail;
+            card.appendChild(detailEl);
+        }
+
+        return card;
+    }
+
+    function statItem(label, value, percent = null) {
+        const box = document.createElement("div");
+        box.className = "stat";
+
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = label;
+
+        const number = document.createElement("div");
+        number.className = "number";
+        number.textContent = value;
+
+        box.append(name, number);
+
+        if (percent !== null && Number.isFinite(Number(percent))) {
+            const bar = document.createElement("div");
+            bar.className = "bar";
+
+            const fill = document.createElement("div");
+            fill.style.width = Math.max(0, Math.min(100, Number(percent))) + "%";
+
+            bar.appendChild(fill);
+            box.appendChild(bar);
+        }
+
+        return box;
+    }
+
+    function showEmpty(container, message, columns = 1) {
+        container.replaceChildren();
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = columns;
+        cell.className = "empty";
+        cell.textContent = message;
+        row.appendChild(cell);
+        container.appendChild(row);
+    }
+
+    async function getJSON(url, options = {}) {
+        const response = await fetch(API_BASE + url, options);
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(
+                data.message || data.error || `${url} returned HTTP ${response.status}`
+            );
+        }
+
+        return data;
+    }
+
+    function renderLexical(data) {
+        const lexical = data.lexical_analysis || {};
+        const counts = lexical.counts || {};
+        const indicators = lexical.complexity_indicators || {};
+
+        $("totalTokens").textContent = formatNumber(lexical.total_tokens);
+        $("statements").textContent = formatNumber(lexical.statement_count);
+        $("keywords").textContent = formatNumber(counts.keywords);
+        $("identifiers").textContent = formatNumber(counts.identifiers);
+
+        const countBox = $("tokenCounts");
+        countBox.replaceChildren();
+
+        const countLabels = [
+            ["Keywords", "keywords"],
+            ["Identifiers", "identifiers"],
+            ["Literals", "literals"],
+            ["Operators", "operators"],
+            ["Delimiters", "delimiters"],
+            ["Comments", "comments"],
+            ["Unknown Tokens", "unknown"]
+        ];
+
+        countLabels.forEach(([label, key]) => {
+            countBox.appendChild(statItem(label, formatNumber(counts[key] ?? 0)));
+        });
+
+        const complexityBox = $("complexity");
+        complexityBox.replaceChildren();
+
+        const complexityLabels = [
+            ["JOIN occurrences", "join_count"],
+            ["Subquery indicators", "subquery_keyword_count"],
+            ["WHERE occurrences", "where_clause_count"]
+        ];
+
+        complexityLabels.forEach(([label, key]) => {
+            complexityBox.appendChild(
+                statItem(label, formatNumber(indicators[key] ?? 0))
+            );
+        });
+
+        const rows = $("tokenRows");
+        rows.replaceChildren();
+
+        const tokens = Array.isArray(lexical.tokens) ? lexical.tokens : [];
+
+        if (tokens.length === 0) {
+            showEmpty(rows, "No tokens were returned.", 3);
+        } else {
+            tokens.forEach(token => {
+                const tr = document.createElement("tr");
+
+                const position = document.createElement("td");
+                position.textContent = formatNumber(token.position);
+
+                const typeCell = document.createElement("td");
+                const tag = document.createElement("span");
+                tag.className = "tag " + String(token.type || "");
+                tag.textContent = token.type || "UNKNOWN";
+                typeCell.appendChild(tag);
+
+                const value = document.createElement("td");
+                const code = document.createElement("code");
+                code.textContent = token.value ?? "";
+                value.appendChild(code);
+
+                tr.append(position, typeCell, value);
+                rows.appendChild(tr);
+            });
+        }
+
+        $("tokenSummary").textContent =
+            `${formatNumber(lexical.sql_characters)} SQL characters · ` +
+            `${formatNumber(lexical.total_tokens)} tokens · ` +
+            `Timestamp: ${data.timestamp || "not supplied"}`;
+    }
+
+    function renderOS(data) {
+        const container = $("osMetrics");
+        container.replaceChildren();
+
+        // Supports both the nested metric response and the simpler response format.
+        const cpu = data.cpu || {};
+        const memory = data.memory || {};
+        const disk = data.disk || {};
+        const system = data.system || {};
+
+        const cpuUsage = cpu.usage_percent ?? data.cpu_percent;
+        const memoryUsage = memory.usage_percent ??
+            (Number.isFinite(Number(data.total_ram_mb)) &&
+             Number(data.total_ram_mb) > 0
+                ? 100 * (Number(data.total_ram_mb) - Number(data.free_ram_mb || 0)) /
+                  Number(data.total_ram_mb)
+                : undefined);
+
+        const memoryDetail = memory.total_bytes !== undefined
+            ? `${formatBytes(memory.available_bytes)} available of ${formatBytes(memory.total_bytes)}`
+            : data.total_ram_mb !== undefined
+                ? `${formatNumber(data.free_ram_mb)} MB free of ${formatNumber(data.total_ram_mb)} MB`
+                : "";
+
+        container.append(
+            metricCard(
+                "CPU Usage",
+                cpuUsage !== undefined ? Number(cpuUsage).toFixed(1) + "%" : "—",
+                cpu.logical_cores !== undefined
+                    ? `${cpu.logical_cores} logical cores`
+                    : ""
+            ),
+            metricCard(
+                "Memory Usage",
+                memoryUsage !== undefined ? Number(memoryUsage).toFixed(1) + "%" : "—",
+                memoryDetail
+            ),
+            metricCard(
+                "Disk Usage",
+                disk.usage_percent !== undefined
+                    ? Number(disk.usage_percent).toFixed(1) + "%"
+                    : "—",
+                disk.total_bytes !== undefined
+                    ? `${formatBytes(disk.free_bytes)} free`
+                    : ""
+            ),
+            metricCard(
+                "Process Count",
+                formatNumber(system.process_count ?? data.process_count),
+                system.platform ? `Platform: ${system.platform}` : ""
+            )
+        );
+    }
+
+    function renderNetwork(data) {
+        const traffic = data.traffic || {};
+        const interfaces = data.interfaces || {};
+
+        const interfaceList = Object.entries(interfaces);
+        const activeCount = interfaceList.filter(
+            ([, info]) => info && info.is_up
+        ).length;
+
+        const latency = data.local_tcp_latency_ms ??
+            data.database_tcp_latency_ms;
+
+        const latencyText = latency !== undefined && latency !== null
+            ? `${Number(latency).toFixed(2)} ms`
+            : data.latency_error
+                ? "Unavailable"
+                : "—";
+
+        const container = $("networkMetrics");
+        container.replaceChildren();
+
+        container.append(
+            metricCard("Bytes Sent", formatBytes(traffic.bytes_sent)),
+            metricCard("Bytes Received", formatBytes(traffic.bytes_received)),
+            metricCard(
+                "Local TCP Latency",
+                latencyText,
+                data.latency_error || "Local service connectivity"
+            ),
+            metricCard(
+                "Active Interfaces",
+                `${activeCount} / ${interfaceList.length}`,
+                "Network adapters reported by Windows"
+            )
+        );
+
+        const rows = $("interfaceRows");
+        rows.replaceChildren();
+
+        if (interfaceList.length === 0) {
+            showEmpty(rows, "No network interfaces were returned.", 4);
+            return;
+        }
+
+        interfaceList.forEach(([name, info]) => {
+            const tr = document.createElement("tr");
+
+            const nameCell = document.createElement("td");
+            nameCell.textContent = name;
+
+            const statusCell = document.createElement("td");
+            statusCell.textContent = info.is_up ? "Up" : "Down";
+
+            const speedCell = document.createElement("td");
+            speedCell.textContent = info.speed_mbps !== undefined
+                ? `${formatNumber(info.speed_mbps)} Mbps`
+                : "—";
+
+            const mtuCell = document.createElement("td");
+            mtuCell.textContent = formatNumber(info.mtu);
+
+            tr.append(nameCell, statusCell, speedCell, mtuCell);
+            rows.appendChild(tr);
+        });
+    }
+
+    function renderDatabase(data) {
+        const db = data.database_analysis || {};
+        const container = $("databaseMetrics");
+        container.replaceChildren();
+        const plan = db.plan || db.query_plan || db.explain || null;
+        const scan = db.scan_types || db.scan_type || "Not reported";
+        container.append(
+            metricCard("Execution Time", db.execution_time_ms != null ? `${Number(db.execution_time_ms).toFixed(2)} ms` : (db.execution_ms != null ? `${Number(db.execution_ms).toFixed(2)} ms` : "—")),
+            metricCard("Rows Returned", formatNumber(db.rows_returned ?? db.row_count)),
+            metricCard("Database Status", db.status || "—", db.message || ""),
+            metricCard("Plan Scan", Array.isArray(scan) ? scan.join(", ") : String(scan))
+        );
+        $("queryPlan").textContent = plan ? (typeof plan === "string" ? plan : JSON.stringify(plan, null, 2)) : (db.message || "No execution plan returned.");
+    }
+
+    function renderAI(data) {
+        const ai = data.ai_analysis || {};
+        const box = $("aiResults");
+        box.replaceChildren();
+        if (ai.status !== "success") {
+            box.textContent = ai.message || "AI analysis is unavailable for this workload.";
+            return;
+        }
+        const anomaly = ai.anomaly_detection || {};
+        const bottleneck = ai.bottleneck_detection || {};
+        const addSection = (title, details) => {
+            const heading = document.createElement("h3"); heading.textContent = title; box.appendChild(heading);
+            const body = document.createElement("p"); body.className = "subtext";
+            body.textContent = typeof details === "string" ? details : JSON.stringify(details, null, 2);
+            body.style.whiteSpace = "pre-wrap"; box.appendChild(body);
+        };
+        addSection("Anomaly Detection", anomaly.summary || anomaly.message || anomaly.label || anomaly);
+        addSection("Bottleneck Detection", bottleneck.summary || bottleneck.message || bottleneck.findings || bottleneck);
+        const model = document.createElement("p"); model.className = "footnote";
+        model.textContent = "Detection method: " + (ai.model || anomaly.method || "rule-based"); box.appendChild(model);
+    }
+
+    async function analyzeWorkload() {
+        const sql = $("queries").value.trim();
+        const button = $("run");
+
+        if (!sql) {
+            setStatus("Please enter a SQL query.", "error");
+            return;
+        }
+
+        button.disabled = true;
+        setStatus("Analyzing SQL and collecting system metrics...");
+        
+        try {
+            const [analysis, osResult, networkResult] = await Promise.allSettled([
+                getJSON("/api/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sql })
+                }),
+                getJSON("/api/metrics/os"),
+                getJSON("/api/metrics/network")
+            ]);
+
+            if (analysis.status === "rejected") {
+                throw analysis.reason;
+            }
+
+            renderLexical(analysis.value);
+            renderDatabase(analysis.value);
+            renderAI(analysis.value);
+
+            const warnings = [];
+
+            if (osResult.status === "fulfilled") {
+                renderOS(osResult.value);
+            } else {
+                warnings.push("OS metrics unavailable");
+            }
+
+            if (networkResult.status === "fulfilled") {
+                renderNetwork(networkResult.value);
+            } else {
+                warnings.push("Network metrics unavailable");
+            }
+
+            if (warnings.length) {
+                setStatus(
+                    "SQL analysis completed; " + warnings.join("; ") + ".",
+                    "error"
+                );
+            } else {
+                setStatus("Analysis completed successfully.", "success");
+            }
+        } catch (error) {
+            setStatus("Error: " + error.message, "error");
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    function clearResults() {
+        $("queries").value = "";
+        $("totalTokens").textContent = "—";
+        $("statements").textContent = "—";
+        $("keywords").textContent = "—";
+        $("identifiers").textContent = "—";
+
+        $("tokenCounts").replaceChildren();
+        $("complexity").replaceChildren();
+
+        showEmpty($("tokenRows"), "No tokens yet.", 3);
+        $("tokenSummary").textContent = "";
+        $("databaseMetrics").replaceChildren(metricCard("Execution Time", "—"), metricCard("Rows Returned", "—"), metricCard("Database Status", "—"), metricCard("Plan Scan", "—"));
+        $("queryPlan").textContent = "Run a query to view its plan.";
+        $("aiResults").textContent = "Run a query to view anomaly and bottleneck analysis.";
+
+        setStatus("Ready to analyze.");
+    }
+</script>
+</body>
+</html>
